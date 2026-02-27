@@ -1,0 +1,57 @@
+import pennylane as qml
+from pennylane import numpy as np
+import matplotlib.pyplot as plt
+
+# Define H2 molecule
+symbols = ["H", "H"]
+coordinates = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]])
+
+# Generate molecular Hamiltonian
+H, qubits = qml.qchem.molecular_hamiltonian(
+    symbols,
+    coordinates,
+    basis="sto-3g"
+)
+
+dev = qml.device("default.qubit", wires=qubits)
+
+# ------------------------------
+# Classical Hartree–Fock Energy
+# ------------------------------
+@qml.qnode(dev)
+def hf_energy():
+    qml.BasisState(np.array([1, 1, 0, 0]), wires=range(qubits))
+    return qml.expval(H)
+
+hf = hf_energy()
+
+# ------------------------------
+# Quantum VQE Circuit
+# ------------------------------
+@qml.qnode(dev)
+def vqe_circuit(theta):
+    qml.BasisState(np.array([1, 1, 0, 0]), wires=range(qubits))
+    qml.RY(theta[0], wires=0)
+    qml.CNOT(wires=[0, 1])
+    return qml.expval(H)
+
+# VQE Optimization
+theta = np.array([0.0], requires_grad=True)
+opt = qml.GradientDescentOptimizer(0.4)
+
+for _ in range(40):
+    theta = opt.step(vqe_circuit, theta)
+
+vqe = vqe_circuit(theta)
+
+# Print results
+print("Hartree–Fock Energy:", hf)
+print("VQE Energy:", vqe)
+
+# ------------------------------
+# Visualization
+# ------------------------------
+plt.bar(["Hartree–Fock", "VQE"], [hf, vqe])
+plt.ylabel("Energy (Hartree)")
+plt.title("Classical vs Quantum Energy Comparison (H₂)")
+plt.show()

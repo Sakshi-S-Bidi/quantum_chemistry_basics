@@ -1,0 +1,54 @@
+import pennylane as qml
+from pennylane import numpy as np
+import matplotlib.pyplot as plt
+
+# Bond lengths to test (Angstrom)
+bond_lengths = np.linspace(0.4, 1.4, 8)
+energies = []
+
+for bond in bond_lengths:
+    # Define H2 molecule
+    symbols = ["H", "H"]
+    coordinates = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, bond]])
+
+    # Generate Hamiltonian
+    H, qubits = qml.qchem.molecular_hamiltonian(
+        symbols,
+        coordinates,
+        basis="sto-3g"
+    )
+
+    dev = qml.device("default.qubit", wires=qubits)
+
+    # VQE circuit
+    @qml.qnode(dev)
+    def vqe_circuit(theta):
+        qml.BasisState(np.array([1, 1, 0, 0]), wires=range(qubits))
+        qml.RY(theta[0], wires=0)
+        qml.CNOT(wires=[0, 1])
+        return qml.expval(H)
+
+    # Optimize energy
+    theta = np.array([0.0], requires_grad=True)
+    opt = qml.GradientDescentOptimizer(0.4)
+
+    for _ in range(40):
+        theta = opt.step(vqe_circuit, theta)
+
+    energy = vqe_circuit(theta)
+    energies.append(energy)
+
+# Find optimal bond length
+min_energy = min(energies)
+optimal_bond = bond_lengths[np.argmin(energies)]
+
+print("Optimal Bond Length (Å):", optimal_bond)
+print("Minimum Ground State Energy:", min_energy)
+
+# Plot energy vs bond length
+plt.plot(bond_lengths, energies, marker='o')
+plt.xlabel("Bond Length (Å)")
+plt.ylabel("Ground State Energy (Hartree)")
+plt.title("Molecular Geometry Optimization of H₂ using VQE")
+plt.grid()
+plt.show()

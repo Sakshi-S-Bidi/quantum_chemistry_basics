@@ -1,0 +1,49 @@
+import pennylane as qml
+from pennylane import numpy as np
+import matplotlib.pyplot as plt
+
+# Bond distances (in Angstrom)
+bond_lengths = np.linspace(0.4, 1.6, 8)
+
+energies = []
+
+for bond in bond_lengths:
+    # Generate molecular Hamiltonian for H2
+    symbols = ["H", "H"]
+    coordinates = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, bond]])
+
+    H, qubits = qml.qchem.molecular_hamiltonian(
+    symbols,
+    coordinates,
+    charge=0,
+    mult=1
+)
+
+
+    dev = qml.device("default.qubit", wires=qubits)
+
+    @qml.qnode(dev)
+    def vqe_circuit(theta):
+        qml.BasisState(np.array([1, 1, 0, 0]), wires=range(qubits))
+        qml.RY(theta[0], wires=0)
+        qml.CNOT(wires=[0, 1])
+        return qml.expval(H)
+
+    # VQE optimization
+    theta = np.array([0.0], requires_grad=True)
+    opt = qml.GradientDescentOptimizer(stepsize=0.4)
+
+    for _ in range(40):
+        theta = opt.step(vqe_circuit, theta)
+
+    energy = vqe_circuit(theta)
+    energies.append(energy)
+
+# Plot Bond Dissociation Curve
+plt.figure()
+plt.plot(bond_lengths, energies, marker='o')
+plt.xlabel("Bond Length (Å)")
+plt.ylabel("Ground State Energy (Hartree)")
+plt.title("H₂ Bond Dissociation Curve using VQE")
+plt.grid()
+plt.show()

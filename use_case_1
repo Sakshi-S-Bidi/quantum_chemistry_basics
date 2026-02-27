@@ -1,0 +1,46 @@
+import pennylane as qml
+from pennylane import numpy as np
+import matplotlib.pyplot as plt
+
+# 2-qubit H2 Hamiltonian (predefined, standard)
+H = (
+    -1.0523732 * qml.PauliZ(0)
+    -1.0523732 * qml.PauliZ(1)
+    +0.0112801 * qml.PauliZ(0) @ qml.PauliZ(1)
+    +0.3979374 * qml.PauliX(0) @ qml.PauliX(1)
+)
+
+dev = qml.device("default.qubit", wires=2)
+
+@qml.qnode(dev)
+def hf_energy():
+    qml.BasisState(np.array([1, 1]), wires=[0, 1])
+    return qml.expval(H)
+
+@qml.qnode(dev)
+def vqe_circuit(theta):
+    qml.BasisState(np.array([1, 1]), wires=[0, 1])
+    qml.RY(theta[0], wires=0)
+    qml.CNOT(wires=[0, 1])
+    return qml.expval(H)
+
+# HF energy
+hf = hf_energy()
+
+# VQE optimization
+theta = np.array([0.0], requires_grad=True)
+opt = qml.GradientDescentOptimizer(0.4)
+
+for _ in range(40):
+    theta = opt.step(vqe_circuit, theta)
+
+vqe = vqe_circuit(theta)
+
+print("Hartree–Fock Energy:", hf)
+print("VQE Energy:", vqe)
+
+# Bar graph
+plt.bar(["HF", "VQE"], [hf, vqe])
+plt.ylabel("Energy (Hartree)")
+plt.title("HF vs VQE Energy Comparison")
+plt.show()

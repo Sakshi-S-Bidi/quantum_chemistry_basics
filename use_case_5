@@ -1,0 +1,64 @@
+import pennylane as qml
+from pennylane import numpy as np
+import matplotlib.pyplot as plt
+
+# Simple 2-qubit H2 Hamiltonian (same as Use Case 1)
+H = (
+    -1.0523732 * qml.PauliZ(0)
+    -1.0523732 * qml.PauliZ(1)
+    +0.0112801 * qml.PauliZ(0) @ qml.PauliZ(1)
+    +0.3979374 * qml.PauliX(0) @ qml.PauliX(1)
+)
+
+# -----------------------------
+# Ideal (Noise-free) Simulator
+# -----------------------------
+dev_ideal = qml.device("default.qubit", wires=2)
+
+@qml.qnode(dev_ideal)
+def vqe_ideal(theta):
+    qml.BasisState(np.array([1, 1]), wires=[0, 1])
+    qml.RY(theta[0], wires=0)
+    qml.CNOT(wires=[0, 1])
+    return qml.expval(H)
+
+theta = np.array([0.0], requires_grad=True)
+opt = qml.GradientDescentOptimizer(0.4)
+
+for _ in range(40):
+    theta = opt.step(vqe_ideal, theta)
+
+energy_ideal = vqe_ideal(theta)
+
+# -----------------------------
+# Noisy Simulator (Depolarizing Noise)
+# -----------------------------
+dev_noisy = qml.device("default.mixed", wires=2)
+
+@qml.qnode(dev_noisy)
+def vqe_noisy(theta):
+    qml.BasisState(np.array([1, 1]), wires=[0, 1])
+    qml.RY(theta[0], wires=0)
+    qml.DepolarizingChannel(0.05, wires=0)
+    qml.CNOT(wires=[0, 1])
+    qml.DepolarizingChannel(0.05, wires=1)
+    return qml.expval(H)
+
+theta_n = np.array([0.0], requires_grad=True)
+
+for _ in range(40):
+    theta_n = opt.step(vqe_noisy, theta_n)
+
+energy_noisy = vqe_noisy(theta_n)
+
+# -----------------------------
+# Results
+# -----------------------------
+print("Ideal Simulator Energy:", energy_ideal)
+print("Noisy Simulator Energy:", energy_noisy)
+
+# Plot comparison
+plt.bar(["Ideal Simulator", "Noisy Simulator"], [energy_ideal, energy_noisy])
+plt.ylabel("Ground State Energy (Hartree)")
+plt.title("Effect of Noise on VQE Performance")
+plt.show()
